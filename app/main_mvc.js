@@ -8,6 +8,8 @@ class EventEmitter {
 		// if the signal is already present push a new item into it
 		// if the signal is not yet present create a new array first and then push into it
 		(this.events[signal] || (this.events[signal] = [])).push(listener);
+		console.log('on signal:', signal)
+		console.log('call: ', listener)
 		return this;
 	}
 	emit(signal, arg) {
@@ -17,9 +19,11 @@ class EventEmitter {
 	}
 }
 
-class Model {
+class Model extends EventEmitter {
 
 	constructor() {
+
+		super()
 		
 		this.userSettings = {
 			gluten: 0,
@@ -35,15 +39,6 @@ class Model {
 			restaurant: 0,
 			finishedProd: 0,
 		}
-
-		/* this.questions = [
-			{ id: 0, key: 'fruits', text: 'Essen Sie gerne Obst?', weight: 2, sign: undefined, tags: ['glucose', 'fat', 'vegan'] },
-			{ id: 1, key: 'fulltime', text: 'Arbeiten Sie Vollzeit?', weight: 2, sign: undefined, tags: ['permanent'] },
-			{ id: 2, key: 'noodles', text: 'Essen Sie gerne Nudeln?', weight: 2, sign: undefined, tags: ['glucose', 'vegan'] },
-			{ id: 3, key: 'meat', text: 'Essen Sie Fleisch?', weight: 2, sign: undefined, tags: ['fat', 'vegan'] },
-			{ id: 4, key: 'skills', text: 'Können Sie kochen?', weight: 2, sign: undefined, tags: ['laborious'] },
-			{ id: 5, key: 'gluten', text: 'Haben Sie eine Unverträglichkeit / Allergie gegen Gluten?', weight: 2, sign: undefined, tags: ['gluten'] },
-		] */
 
 		this.questions = [
 			{ id: 0, key: 'fruits', text: 'Essen Sie gerne Obst?', answer: undefined, userWeight: 0, sign: undefined, 
@@ -108,7 +103,8 @@ class Model {
 			}
 		}
 		// function calls:
-		this.onSettingsUpdate(this.userSettings, this.dietsOrder) // update notification to controller
+		this.emit('settingsUpdated', this.userSettings)
+		//this.onSettingsUpdate(this.userSettings, this.dietsOrder) // update notification to controller
 	}
 
 	orderDiets() {
@@ -140,7 +136,7 @@ class Model {
 		if (inputValue === "no") answer = false
 		if (inputValue === "yes") answer = true
 		this.questions[qId].answer = answer
-		console.log(`answer set to: ${this.questions[qId].answer}`)
+		//console.log(`answer set to: ${this.questions[qId].answer}`)
 		this.updateQuestion(qId)
 	}
 
@@ -158,33 +154,38 @@ class Model {
 			if (this.questions[qId].answer === false) {
 				t.computed =  -1 * (t.sign * (t.weightNo + this.questions[qId].userWeight))
 			}
-			console.log(`${t.key} set to: ${t.computed}`)
+			//console.log(`${t.key} set to: ${t.computed}`)
 		}
 		this.updateUserSettings()
-		this.onQuestionUpdate(qId, this.questions[qId])
+		this.emit('questionUpdated', qId, this.questions[qId])
+		//this.onQuestionUpdate(qId, this.questions[qId])
 	}
 
-	bindOnSettingsUpdate(callback) {
+	/* bindOnSettingsUpdate(callback) {
 		// makes the app.controller.onSettingsUpdate method available here
 		this.onSettingsUpdate = callback
-	}
+	} */
 
-	bindOnQuestionUpdate(callback) {
+	/* bindOnQuestionUpdate(callback) {
 		// makes the app.controller.onSettingsUpdate method available here
 		this.onQuestionUpdate = callback
-	}
+	} */
 }
 
-class View {
+class View extends EventEmitter {
 
 	inputElements = []
 	selectElements = []
 	outputElements = []
 	summaryElement;
 
-	constructor() {
-		// The root element
-		this.app = document.getElementById('root');
+	constructor(model) {
+		super()
+		this._model = model
+		this.app = document.getElementById('root')
+		model.on('questionUpdated', (qId) => this.updateQuestionOutput(qId))
+		model.on('settingsUpdated', (userSettings) => this.updateSummaryView(userSettings))
+		
 	}
 
 	/* CREATE ELEMENTS */
@@ -323,7 +324,7 @@ class View {
 		let outEl = this.outputElements.find(item => item.dataset.qId === qId.toString())
 		this.removeAllChildren(outEl)
 
-		for (let t of question.tags) {
+		for (let t of this._model.questions[qId].tags) {
 			//let tagValue = (question.answer === true) ? t.weightYes : -t.weightNo
 			
 			let outItem = this.createElement('span', 'output-item')
@@ -336,18 +337,6 @@ class View {
 		// code
 	}
 	/* BIND HANDLERS */
-
-	/* bindClick(handler) {
-		this.app.addEventListener('click', evt => {
-			//evt.preventDefault()
-
-			if (evt.target.tagName === 'INPUT') {
-				let qId = parseInt(evt.target.dataset.qId)
-				let inputValue = evt.target.value
-				handler(qId, inputValue) // app.controller.handleSomething
-			}
-		})
-	} */
 
 	bindInputYesNo(handler) {
 		for (let el of this.inputElements) {
@@ -395,8 +384,9 @@ class View {
 // end of class View
 }
 
-class Controller {
+class Controller extends EventEmitter {
 	constructor(model, view) {
+		super()
 		this.model = model
 		this.view = view
 
@@ -405,8 +395,8 @@ class Controller {
 		//this.view.bindClick(this.handleInputYesNo)
 		this.view.bindInputYesNo(this.handleInputYesNo)
 		this.view.bindSelectWeight(this.handleSelectWeight)
-		this.model.bindOnSettingsUpdate(this.onSettingsUpdate) // makes onSettingsUpdate available in the model
-		this.model.bindOnQuestionUpdate(this.onQuestionUpdate)
+		//this.model.bindOnSettingsUpdate(this.onSettingsUpdate) // makes onSettingsUpdate available in the model
+		//this.model.bindOnQuestionUpdate(this.onQuestionUpdate)
 	}
 
 	handleInputYesNo = (qId, inputValue) => {
@@ -420,14 +410,16 @@ class Controller {
 	}
 
 
-	onSettingsUpdate = (userSettings, dietList) => {
+	/* onSettingsUpdate = (userSettings, dietList) => {
 		this.view.updateSummaryView(userSettings)
 		this.view.updateDietList(dietList)
 	}
 
 	onQuestionUpdate = (qId, question) => {
 		this.view.updateQuestionOutput(qId, question)
-	}
+	} */
 }
 
-const app = new Controller(new Model(), new View())
+const model = new Model()
+const view = new View(model)
+const controller = new Controller(model, view)
