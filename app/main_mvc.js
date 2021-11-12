@@ -1,3 +1,22 @@
+class EventEmitter {
+	constructor() {
+		this.events = {};
+		// an object of arrays containing the functions which are called when a notification signal (the object's key) is used
+	}
+	on(signal, listener) {
+		// for adding event handler
+		// if the signal is already present push a new item into it
+		// if the signal is not yet present create a new array first and then push into it
+		(this.events[signal] || (this.events[signal] = [])).push(listener);
+		return this;
+	}
+	emit(signal, arg) {
+		// for calling the event handlers for the specified event
+		//(this.events[signal] || []).slice().forEach(lsn => lsn(arg));
+		(this.events[signal] || []).map(listener => listener(arg));
+	}
+}
+
 class Model {
 
 	constructor() {
